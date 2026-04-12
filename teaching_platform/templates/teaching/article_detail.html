@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ article.title }}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    .annotation-link {
+      cursor: pointer;
+      color: #0d6efd;
+      text-decoration: none;
+      transition: color 0.2s ease, text-decoration 0.2s ease;
+    }
+    .annotation-link:hover {
+      text-decoration: underline;
+      color: #0a58ca;
+    }
+    .media-card { transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
+    .media-card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.12); }
+    .media-card .media-card-row { display: inline-flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .media-card .media-card-title { transition: color 0.2s ease, text-decoration 0.2s ease; }
+    .media-card:hover .media-card-title { text-decoration: underline; color: #0d6efd; }
+    .media-card-preview { transition: color 0.2s ease; }
+    .media-card:hover .media-card-preview { color: #0d6efd; }
+    .media-card .media-card-icon img { max-height: 32px; width: auto; display: block; }
+    .accordion-button { background: #4f46e5 !important; color: white !important; }
+    .accordion-button::after { filter: brightness(10); }
+
+    /* Sticky sidebar only on large screens; stacks normally on mobile */
+    @media (min-width: 992px) {
+      .sidebar-sticky { position: sticky; top: 20px; }
+    }
+
+    /* Keep CKEditor-rendered images from overflowing on small screens */
+    #article-body img,
+    .accordion-body img,
+    #annotationModalBody img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Allow CKEditor tables to scroll horizontally on small screens */
+    #article-body table,
+    .accordion-body table {
+      display: block;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Slightly smaller header text on phones */
+    @media (max-width: 575.98px) {
+      .page-header h1 { font-size: 1.5rem; }
+      .page-header p  { font-size: 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Static Header -->
+<div class="text-white text-center py-4 page-header" style="background: linear-gradient(135deg, #4f46e5, #7c3aed)">
+  <h1 class="fw-bold">Interactive Teaching Platform</h1>
+  <p class="mb-0">Click on highlighted terms to explore multimedia content</p>
+</div>
+
+<div class="container-fluid py-3 py-md-4 px-2 px-sm-3 px-md-4">
+  <div class="row g-4">
+
+    <!-- Left Column -->
+    <div class="col-lg-8">
+
+      <!-- Section 1: Media Cards -->
+      <div class="card mb-4" style="border-left: 4px solid #4f46e5;">
+        <div class="card-body">
+          <h5 class="fw-bold" style="color:#4f46e5;">Multimedia Content Examples</h5>
+          <hr style="border-color:#4f46e5;">
+          <div class="row g-3">
+            {% for card in media_cards %}
+            <div class="col-6 col-md-3">
+              <div class="card h-100 border media-card"
+                  data-card-type="{{ card.card_type }}"
+                  data-card-title="{{ card.title }}"
+                  {% if card.file %}data-card-file="{{ card.file.url }}"{% endif %}
+                  {% if card.youtube_url %}data-card-youtube="{{ card.youtube_url }}"{% endif %}
+                  {% if card.text_content %}data-card-text="{{ card.text_content }}"{% endif %}>
+                <div class="card-body text-center py-3 d-flex flex-column align-items-center justify-content-center">
+                  <div class="media-card-row">
+                    <div class="media-card-icon fs-4">
+                      {% if card.icon %}
+                        <img src="{{ card.icon.url }}" alt="{{ card.title }} icon" />
+                      {% elif card.card_type == 'text' %}🔤
+                      {% elif card.card_type == 'image' %}🖼️
+                      {% elif card.card_type == 'audio' %}🔊
+                      {% elif card.card_type == 'video' %}🎬
+                      {% elif card.card_type == 'youtube' %}▶️
+                      {% endif %}
+                    </div>
+                    <span class="fw-semibold small media-card-title {{ card.css_class }}">{{ card.title }}</span>
+                    <span class="text-muted small media-card-preview">🔍</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+            {% if not media_cards %}
+              <p class="text-muted">No media cards added yet.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Article Body with Annotations -->
+      <div class="card" style="border-left: 4px solid #4f46e5;">
+        <div class="card-body">
+          <h5 class="fw-bold" style="color:#4f46e5;">News Article with Interactive Elements</h5>
+          <hr style="border-color:#4f46e5;">
+          <div id="article-body" style="line-height: 1.8;">
+            {{ annotated_body|safe }}
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Column: Expandable Sections -->
+    <div class="col-lg-4">
+      <div class="card sidebar-sticky" style="border-left: 4px solid #4f46e5;">
+        <div class="card-body">
+          <h5 class="fw-bold" style="color:#4f46e5;">Expandable Content</h5>
+          <hr style="border-color:#4f46e5;">
+          <div class="accordion accordion-flush" id="expandableAccordion">
+            {% for section in sections %}
+            <div class="accordion-item border-0 mb-2 rounded overflow-hidden">
+              <h2 class="accordion-header">
+                <button class="accordion-button rounded {% if not section.is_open %}collapsed{% endif %}"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#sec{{ section.id }}"
+                        aria-expanded="{{ section.is_open|yesno:'true,false' }}">
+                  {{ section.title|safe }}
+                </button>
+              </h2>
+              <div id="sec{{ section.id }}"
+                  class="accordion-collapse collapse {% if section.is_open %}show{% endif %}"
+                  data-bs-parent="#expandableAccordion">
+                <div class="accordion-body bg-white">
+                  {{ section.content_body|safe }}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+            {% if not sections %}
+              <p class="text-muted">No sections added yet.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Media Modal -->
+<div class="modal fade" id="mediaModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#4f46e5; color:white;">
+        <h5 class="modal-title" id="mediaModalLabel"></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center p-4" id="mediaModalBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Annotation Modal -->
+<div class="modal fade" id="annotationModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#4f46e5; color:white;">
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4" id="annotationModalBody"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Annotation data from Django
+  const annotations = {{ annotations_json|safe }};
+  // Function to extract YouTube video ID from various URL formats
+  function getYouTubeId(url) {
+    if (!url) {
+      return '';
+    }
+    try {
+      const parsed = new URL(url.trim());
+      const hostname = parsed.hostname.toLowerCase();
+      if (hostname.includes('youtu.be')) {
+        return parsed.pathname.slice(1);
+      }
+      if (hostname.includes('youtube.com')) {
+        if (parsed.pathname.startsWith('/watch')) {
+          return parsed.searchParams.get('v') || '';
+        }
+        if (parsed.pathname.startsWith('/embed/')) {
+          return parsed.pathname.split('/')[2] || '';
+        }
+        if (parsed.pathname.startsWith('/shorts/')) {
+          return parsed.pathname.split('/')[2] || '';
+        }
+      }
+    } catch (err) {
+      const match = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]+)/);
+      return match ? match[1] : '';
+    }
+    const match = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]+)/);
+    return match ? match[1] : '';
+  }
+
+  // Function to create a YouTube embed element
+  function createYouTubeEmbed(url) {
+    const videoId = getYouTubeId(url);
+    if (!videoId) return null;
+    const origin = encodeURIComponent(window.location.origin);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ratio ratio-16x9 my-2 article-video-embed';
+    wrapper.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&playsinline=1&origin=${origin}" allow="encrypted-media; picture-in-picture; web-share" allowfullscreen style="border:0;" referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+    return wrapper;
+  }
+
+  // Function to replace YouTube links in a given container with embedded players
+  function replaceYouTubeLinksInContainer(container) {
+    if (!container) return;
+    // Handle oembed elements first (for CKEditor embedded media)
+    container.querySelectorAll('figure.media oembed[url], oembed[url]').forEach(function (oembed) {
+      const url = oembed.getAttribute('url') || '';
+      const figure = oembed.closest('figure') || oembed;
+      const embed = createYouTubeEmbed(url);
+      if (!embed) return;
+      figure.parentNode.replaceChild(embed, figure);
+    });
+    // Also handle plain <a> links pointing to YouTube (fallback)
+    container.querySelectorAll('a[href*="youtu.be"], a[href*="youtube.com"]').forEach(function (anchor) {
+      const url = anchor.href;
+      const embed = createYouTubeEmbed(url);
+      if (!embed) return;
+      const next = anchor.nextElementSibling;
+      if (next && next.classList.contains('article-video-embed')) return;
+      if (anchor.textContent.trim() === url.trim()) {
+        anchor.parentNode.replaceChild(embed, anchor);
+      } else {
+        anchor.parentNode.insertBefore(embed, anchor.nextSibling);
+      }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    replaceYouTubeLinksInContainer(document.getElementById('article-body'));
+    document.querySelectorAll('.accordion-body').forEach(replaceYouTubeLinksInContainer);
+  });
+
+  // Media card click
+  document.querySelectorAll('.media-card').forEach(card => {
+    card.addEventListener('click', function () {
+      const type = this.dataset.cardType;
+      const title = this.dataset.cardTitle;
+      const file = this.dataset.cardFile || '';
+      const youtube = this.dataset.cardYoutube || '';
+      const text = this.dataset.cardText || '';
+      let body = '';
+
+      document.getElementById('mediaModalLabel').textContent = title;
+
+      if (type === 'text') {
+        body = `<div class="text-start p-2">${text}</div>`;
+      } else if (type === 'image') {
+        body = `<img src="${file}" class="img-fluid rounded" style="max-height:70vh;">`;
+      } else if (type === 'audio') {
+        body = `<audio controls class="w-100 mt-3"><source src="${file}">Your browser does not support audio.</audio>`;
+      } else if (type === 'video') {
+        body = `<video controls class="w-100 rounded" style="max-height:60vh;"><source src="${file}">Your browser does not support video.</video>`;
+      } else if (type === 'youtube') {
+        const videoId = getYouTubeId(youtube);
+        if (videoId) {
+          const origin = encodeURIComponent(window.location.origin);
+          body = `<div class="ratio ratio-16x9"><iframe src="https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&autoplay=1&playsinline=1&origin=${origin}" allow="autoplay; encrypted-media; picture-in-picture; web-share" allowfullscreen style="border:0;" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>`;
+        } else {
+          body = `<p>Invalid YouTube link. <a href="${youtube}" target="_blank" rel="noopener">Open on YouTube</a></p>`;
+        }
+      }
+
+      document.getElementById('mediaModalBody').innerHTML = body;
+      new bootstrap.Modal(document.getElementById('mediaModal')).show();
+    });
+  });
+
+  // Clear media on modal close (stops playback)
+  document.getElementById('mediaModal').addEventListener('hide.bs.modal', function () {
+    document.getElementById('mediaModalBody').innerHTML = '';
+  });
+
+  // Stop any embedded YouTube videos when annotation modal closes
+  document.getElementById('annotationModal').addEventListener('hide.bs.modal', function () {
+    this.querySelectorAll('iframe').forEach(function (iframe) {
+      iframe.src = iframe.src;
+    });
+  });
+
+  // Annotation term click
+  document.addEventListener('click', function (e) {
+    const span = e.target.closest('.annotation-link');
+    if (!span) return;
+    const term = span.dataset.term;
+    const annotationModalBody = document.getElementById('annotationModalBody');
+    annotationModalBody.innerHTML = annotations[term] || 'No info available.';
+    replaceYouTubeLinksInContainer(annotationModalBody);
+    new bootstrap.Modal(document.getElementById('annotationModal')).show();
+  });
+</script>
+</body>
+</html>
