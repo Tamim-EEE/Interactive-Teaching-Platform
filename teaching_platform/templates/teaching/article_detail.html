@@ -53,6 +53,25 @@
       .page-header h1 { font-size: 1.5rem; }
       .page-header p  { font-size: 0.9rem; }
     }
+
+    /* Breadcrumb: prevent long titles from overflowing on mobile */
+    .breadcrumb {
+      flex-wrap: nowrap;
+      min-width: 0;
+    }
+    .breadcrumb-item {
+      white-space: nowrap;
+    }
+    .breadcrumb-item.active {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    @media (max-width: 575.98px) {
+      .breadcrumb-item, .breadcrumb-item a {
+        font-size: 0.78rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -65,7 +84,7 @@
 
 <div class="container-fluid px-2 px-sm-3 px-md-4">
   <!-- Breadcrumb -->
-  <nav aria-label="breadcrumb" class="py-2">
+  <nav aria-label="breadcrumb" class="py-2 mb-4">
     <ol class="breadcrumb mb-0">
       <li class="breadcrumb-item">
         <a href="{% url 'article_list' %}" class="text-black text-opacity-75 text-decoration-none">All Articles</a>
