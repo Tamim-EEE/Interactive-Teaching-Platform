@@ -63,7 +63,17 @@
   <p class="mb-0">Click on highlighted terms to explore multimedia content</p>
 </div>
 
-<div class="container-fluid py-3 py-md-4 px-2 px-sm-3 px-md-4">
+<div class="container-fluid px-2 px-sm-3 px-md-4">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="py-2">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item">
+        <a href="{% url 'article_list' %}" class="text-black text-opacity-75 text-decoration-none">All Articles</a>
+      </li>
+      <li class="breadcrumb-item active text-black fw-semibold" aria-current="page">{{ article.title }}</li>
+    </ol>
+  </nav>
+
   <div class="row g-4">
 
     <!-- Left Column -->
@@ -256,9 +266,25 @@
     });
   }
 
+  // Fix CKEditor links that are missing a URL scheme (e.g. www.google.com -> https://www.google.com)
+  function fixRelativeLinks(container) {
+    if (!container) return;
+    container.querySelectorAll('a[href]').forEach(function (anchor) {
+      const href = anchor.getAttribute('href');
+      if (href && !/^(https?:\/\/|\/\/|\/)/.test(href) && !/^(mailto:|tel:|#)/.test(href)) {
+        anchor.setAttribute('href', 'https://' + href);
+      }
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
-    replaceYouTubeLinksInContainer(document.getElementById('article-body'));
-    document.querySelectorAll('.accordion-body').forEach(replaceYouTubeLinksInContainer);
+    const articleBody = document.getElementById('article-body');
+    replaceYouTubeLinksInContainer(articleBody);
+    fixRelativeLinks(articleBody);
+    document.querySelectorAll('.accordion-body').forEach(function (body) {
+      replaceYouTubeLinksInContainer(body);
+      fixRelativeLinks(body);
+    });
   });
 
   // Media card click
